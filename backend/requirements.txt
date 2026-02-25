@@ -22,3 +22,4 @@ py4j
 pytest
 pytest-asyncio
 httpx
+pyyaml

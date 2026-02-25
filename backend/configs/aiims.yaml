@@ -1,0 +1,17 @@
+loinc_overrides:
+  "HbA1c":
+    code: "4548-4"
+    display: "Hemoglobin A1c/Hemoglobin.total in Blood"
+  "LDL Cholesterol (Direct)":
+    code: "18262-6"
+    display: "Cholesterol in LDL [Mass/volume] in Serum or Plasma by Direct assay"
+
+icd10_overrides:
+  "Dengue with warning signs":
+    code: "A97.1"
+    display: "Dengue fever with warning signs"
+
+hospital_specific_terms:
+  "AIIMS OPD Card":
+    icd10_code: "Z00.0"
+    display: "General medical examination"
