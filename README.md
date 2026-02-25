@@ -158,9 +158,66 @@ Final FHIR bundle generated as structured JSON file.
 ```bash
 git clone <repo-url>
 cd iith-cliniq
+```
+
+### 2️⃣ Backend Setup
+
+```bash
 cd backend
 python -m venv venv
 venv\Scripts\activate   # Windows
 pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+alembic upgrade head
 ```
 
+Create a .env file in the project root:
+
+```bash
+DATABASE_URL=postgresql://cliniq:cliniq@localhost/cliniq
+REDIS_URL=redis://localhost:6379/0
+ANTHROPIC_API_KEY=your_key_here
+LLM_PROVIDER=anthropic
+HAPI_VALIDATOR_URL=http://localhost:8090
+```
+
+Run backend:
+
+```bash
+uvicorn backend.main:app --reload
+```
+
+### 3️⃣ Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 8. Deliverables Included
+
+- Complete Source Code (ZIP)
+- Output FHIR JSON Bundles
+- FHIR Mapping Excel Sheet
+- Detailed README
+- End-to-End Demo Video
+
+---
+
+## 9. Innovation & Value
+
+- Reduces manual FHIR conversion effort significantly
+- Configuration-driven architecture
+- NHCX profile-aware validation
+- Human-in-the-loop correction
+- Extensible for other HMIS systems
+- Production-ready scalable architecture
+
+---
+
+## 10. Conclusion
+
+ClinIQ provides a scalable, interoperable, and AI-assisted framework to convert unstructured healthcare PDFs into NHCX-aligned FHIR bundles, accelerating ABDM ecosystem adoption and enabling faster claim processing.
