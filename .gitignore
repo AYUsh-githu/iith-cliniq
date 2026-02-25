@@ -1,27 +1,106 @@
+# ===============================
+# Python
+# ===============================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env/
+.venv/
+backend/venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# SQLite DB
+*.db
+*.sqlite3
+
+# Alembic cache
+backend/alembic/versions/__pycache__/
+
 # Logs
-logs
 *.log
+
+# ===============================
+# Environment Variables
+# ===============================
+
+.env
+.env.*
+!.env.example
+
+# ===============================
+# Node / React / Vite
+# ===============================
+
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ===============================
+# IDE / Editor
+# ===============================
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+.vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.env
-__pycache__/
-*.pyc
+Thumbs.db
+
+# ===============================
+# OS Files
+# ===============================
+
+.DS_Store
+Thumbs.db
+
+# ===============================
+# Temporary Upload Storage
+# ===============================
+
+/tmp/
+/backend/tmp/
+/backend/uploads/
+/cliniq/
+
+# ===============================
+# Coverage / Testing
+# ===============================
+
+.coverage
+htmlcov/
+.pytest_cache/
+
+# ===============================
+# Celery / Redis
+# ===============================
+
+celerybeat-schedule
+*.pid
+
+# ===============================
+# Misc
+# ===============================
+
+*.zip
+*.tar.gz

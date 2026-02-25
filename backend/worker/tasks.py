@@ -105,12 +105,15 @@ def _process_single_document(
     sections = detect_sections(raw_text, doc_type)
 
     # 4. LLM extraction based on type
-    if "diagnostic_report" in doc_type:
+    '''if "diagnostic_report" in doc_type:
         extracted = extractor.extract_diagnostic_report(sections, raw_text)
     elif "discharge_summary" in doc_type or "discharge" in doc_type:
         extracted = extractor.extract_discharge_summary(sections, raw_text)
     else:
-        extracted = {}
+        extracted = {}'''
+    
+    extracted = {}
+
 
     # 5. Terminology enrichment
     _enrich_with_terminology(extracted, mapper)
@@ -122,16 +125,24 @@ def _process_single_document(
 
     # 6. FHIR bundle building
     fhir_bundle: Dict[str, Any] | None = None
-    if "diagnostic_report" in doc_type:
-        fhir_bundle = build_diagnostic_report_bundle(extracted, str(document.id))
-    elif "discharge_summary" in doc_type or "discharge" in doc_type:
-        fhir_bundle = build_discharge_summary_bundle(extracted, str(document.id))
+
+    try:
+        if "diagnostic_report" in doc_type:
+            fhir_bundle = build_diagnostic_report_bundle(extracted, str(document.id))
+        elif "discharge_summary" in doc_type or "discharge" in doc_type:
+            fhir_bundle = build_discharge_summary_bundle(extracted, str(document.id))
+
+    except Exception:
+        logger.exception("FHIR bundle building failed for document %s", document.id)
+        document.status = "failed"
+        db.add(document)
+        db.commit()
+        return
 
     if fhir_bundle is not None:
         document.fhir_bundle = fhir_bundle
-
-    document.status = "review"
-    db.add(document)
+        document.status = "review"
+        db.add(document)
 
     audit = AuditLog(
         document_id=document.id,

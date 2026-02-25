@@ -39,7 +39,7 @@ def build_discharge_summary_bundle(extracted: Dict[str, Any], document_id: str) 
     patient_resource: Dict[str, Any] = {
         "resourceType": "Patient",
         "id": patient_id,
-        "name": [{"text": patient.get("name", "")}],
+        "name": [{"text": patient.get("name")}],
         "gender": (patient.get("gender") or "").lower() or None,
         "birthDate": patient.get("dob") or None,
         "address": [{"text": patient.get("address", "")}] if patient.get("address") else [],
@@ -53,7 +53,7 @@ def build_discharge_summary_bundle(extracted: Dict[str, Any], document_id: str) 
     practitioner_resource: Dict[str, Any] = {
         "resourceType": "Practitioner",
         "id": practitioner_id,
-        "name": [{"text": physician.get("name", "")}],
+        "name": [{"text": physician.get("name")}],
         "identifier": [
             {
                 "system": "urn:cliniq:registration-no",
@@ -68,34 +68,23 @@ def build_discharge_summary_bundle(extracted: Dict[str, Any], document_id: str) 
     org_resource: Dict[str, Any] = {
         "resourceType": "Organization",
         "id": org_id,
-        "name": physician.get("hospital", ""),
-        "department": [{"name": physician.get("department", "")}]
-        if physician.get("department")
-        else None,
+        "name": physician.get("hospital"),
     }
 
     # Encounter
     enc_resource: Dict[str, Any] = {
-        "resourceType": "Encounter",
-        "id": encounter_id,
-        "status": "finished",
-        "class": {
+    "resourceType": "Encounter",
+    "id": encounter_id,
+    "status": "finished",
+    "class": [
+        {
             "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
             "code": "IMP",
             "display": "inpatient encounter",
-        },
-        "subject": patient_ref,
-        "period": {
-            "start": admission.get("date") or None,
-            "end": discharge.get("date") or None,
-        },
-        "hospitalization": {
-            "dischargeDisposition": {
-                "text": discharge.get("condition") or "",
-            }
-        },
-    }
-
+        }
+    ],
+    "subject": patient_ref,
+}
     # Conditions (diagnoses)
     condition_entries: List[Dict[str, Any]] = []
     condition_refs: List[Dict[str, str]] = []
@@ -318,10 +307,6 @@ def build_discharge_summary_bundle(extracted: Dict[str, Any], document_id: str) 
         "subject": patient_ref,
         "encounter": encounter_ref,
         "description": follow_up.get("instructions") or "",
-        "period": {
-            "start": discharge.get("date") or None,
-            "end": follow_up.get("date") or None,
-        },
     }
     careplan_entry = {
         "fullUrl": f"urn:uuid:{careplan_id}",
@@ -350,7 +335,7 @@ def build_discharge_summary_bundle(extracted: Dict[str, Any], document_id: str) 
         },
         "date": discharge.get("date") or datetime.utcnow().date().isoformat(),
         "title": "Discharge Summary",
-        "subject": patient_ref,
+        "subject": [patient_ref],
         "encounter": encounter_ref,
         "author": [practitioner_ref],
         "section": [
@@ -411,5 +396,18 @@ def build_discharge_summary_bundle(extracted: Dict[str, Any], document_id: str) 
         ],
     }
 
-    return Bundle(**bundle_resource).dict()
+    def clean_bundle(obj):
+        if isinstance(obj, dict):
+            new = {}
+            for k, v in obj.items():
+                if v in ("", None, [], {}):
+                    continue
+                new[k] = clean_bundle(v)
+            return new
+        if isinstance(obj, list):
+            return [clean_bundle(i) for i in obj if i not in ("", None, [], {})]
+        return obj
 
+    bundle_resource = clean_bundle(bundle_resource)
+
+    return Bundle(**bundle_resource).dict()

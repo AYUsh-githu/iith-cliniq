@@ -19,3 +19,5 @@ celery_app.conf.update(
     result_expires=3600,
 )
 
+# Import tasks so Celery registers them
+import backend.worker.tasks  # noqa
