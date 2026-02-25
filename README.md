@@ -1,73 +1,166 @@
-# Welcome to your Lovable project
+# ClinIQ  
+### AI-Assisted PDF to NHCX-Aligned FHIR Bundle Converter
 
-## Project info
+---
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 1. Problem Statement
 
-## How can I edit this code?
+Healthcare institutions generate discharge summaries and diagnostic reports in PDF format.  
+For ABDM interoperability and claim submission under NHCX, these documents must be converted into structured FHIR bundles aligned with NRCeS NHCX profiles.
 
-There are several ways of editing your application.
+Manual conversion is:
 
-**Use Lovable**
+- Time-consuming  
+- Error-prone  
+- Technically complex  
+- Not scalable  
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### Objective
 
-Changes made via Lovable will be committed automatically to this repo.
+To significantly reduce manual effort required to convert PDF-based healthcare information into NHCX-aligned FHIR bundles, enabling faster onboarding and interoperability within the ABDM ecosystem.
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 2. Our Solution
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+**ClinIQ** is a full-stack system that:
 
-Follow these steps:
+1. Accepts discharge summaries or diagnostic reports (PDF/ZIP)
+2. Extracts structured clinical data
+3. Builds FHIR R4 bundles aligned to NHCX profiles
+4. Validates bundles with compliance checks
+5. Provides a review interface for human correction
+6. Exports final FHIR bundle for submission
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+---
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 3. Key Features
 
-# Step 3: Install the necessary dependencies.
-npm i
+### 1️⃣ PDF & ZIP Upload
+- Supports 1–10 PDFs or a single ZIP
+- File size validation
+- Job-based processing
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+### 2️⃣ AI-Assisted Data Extraction
+- NLP-based document type classification
+- Structured field extraction
+- Confidence scoring per document
+
+### 3️⃣ FHIR Bundle Generation
+- Diagnostic Report Builder
+- Discharge Summary Builder
+- Auto-mapping extracted fields to FHIR R4 resources
+- Configurable and reusable architecture
+
+### 4️⃣ NHCX Compliance Validation
+- Required field checklist
+- Error / Warning classification
+- Bundle health score calculation
+- Structured validation report
+
+### 5️⃣ Human Review & Audit Logging
+- Edit extracted fields
+- Auto-regenerate FHIR bundle
+- Field-level audit trail
+
+### 6️⃣ Analytics Dashboard
+- Job statistics
+- Confidence averages
+- Status distribution
+
+---
+
+## 4. System Architecture
+
+### Frontend
+- React
+- TypeScript
+- TailwindCSS
+- Framer Motion
+
+### Backend
+- FastAPI
+- SQLAlchemy
+- Alembic
+- PostgreSQL 
+- Celery 
+- Redis 
+
+### Processing Flow
+
+```text
+PDF Upload → Extraction → FHIR Builder → Validation → Review → Export
 ```
 
-**Edit a file directly in GitHub**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+---
 
-**Use GitHub Codespaces**
+## 5. How It Works (Processing Pipeline)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Step 1 – Upload
+User uploads discharge summary or diagnostic report.
 
-## What technologies are used for this project?
+### Step 2 – Job Creation
+System:
+- Creates Job record
+- Stores Document entries
+- Queues processing
 
-This project is built with:
+### Step 3 – Data Extraction
+- PDF parsing
+- NLP-based classification
+- Structured field generation
+- Confidence scoring
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Step 4 – FHIR Generation
+Depending on document type:
+- DiagnosticReport Bundle
+- DischargeSummary Bundle
 
-## How can I deploy this project?
+### Step 5 – Validation
+System checks:
+- Required NHCX profile fields
+- Structural integrity
+- Resource references
+- Severity categorization
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+### Step 6 – Human Review
+User can:
+- Edit extracted fields
+- Trigger regeneration
+- Revalidate
 
-## Can I connect a custom domain to my Lovable project?
+### Step 7 – Export
+Final FHIR bundle generated as structured JSON file.
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 6. API Endpoints
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+| Endpoint | Method | Purpose |
+|-----------|--------|----------|
+| `/health` | GET | Health check |
+| `/api/upload` | POST | Upload PDF/ZIP |
+| `/api/jobs` | GET | List jobs |
+| `/api/jobs/{id}` | GET | Job details |
+| `/api/documents/{id}/validate` | POST | Trigger validation |
+| `/api/documents/{id}/validation` | GET | Get validation report |
+| `/api/documents/{id}/extracted` | PATCH | Edit extracted data |
+| `/api/analytics` | GET | Dashboard metrics |
+| `/api/export` | POST | Export FHIR bundle |
+
+---
+
+## 7. Setup Instructions
+
+### 1️⃣ Clone Repository
+
+```bash
+git clone <repo-url>
+cd iith-cliniq
+cd backend
+python -m venv venv
+venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+```
+
