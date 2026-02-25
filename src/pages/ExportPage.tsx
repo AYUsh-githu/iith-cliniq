@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Copy, Download, ChevronDown, ChevronUp, Check, Loader2, FileText,
   Send, Server, ArrowRight, TrendingUp, Percent, Clock, BarChart3,
@@ -9,6 +9,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Tooltip } from "recharts";
 import { mockFHIRBundle, mockPatient } from "@/data/mockData";
 import { useToast } from "@/hooks/use-toast";
+import { downloadFHIR, submitToABDM, getAuditLog } from "@/lib/api";
 
 /* ── Data ── */
 
@@ -147,6 +148,8 @@ function MiniSparkline() {
 
 export default function ExportPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const docId = searchParams.get("docId");
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -159,7 +162,16 @@ export default function ExportPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (docId) {
+      try {
+        await downloadFHIR(docId);
+        toast({ title: "Downloading FHIR bundle" });
+        return;
+      } catch {
+        toast({ title: "API download failed, using local copy", variant: "destructive" });
+      }
+    }
     const blob = new Blob([mockFHIRBundle], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -169,7 +181,23 @@ export default function ExportPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleAuditDownload = () => {
+  const handleAuditDownload = async () => {
+    if (docId) {
+      try {
+        const log = await getAuditLog(docId);
+        const blob = new Blob([JSON.stringify(log, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `audit_log_${docId.slice(0, 8)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast({ title: "Audit log downloaded" });
+        return;
+      } catch {
+        // Fall through to mock
+      }
+    }
     const auditLog = JSON.stringify({
       auditId: "audit-rs-001",
       timestamp: "2026-02-19T14:30:00+05:30",
@@ -180,7 +208,7 @@ export default function ExportPage() {
       bundleHealthScore: 96,
       fieldsExtracted: 61,
       avgConfidence: 92,
-      operator: "System — ClinIQ v1.0.0-beta",
+      operator: "System \u2014 ClinIQ v1.0.0-beta",
       warnings: 2,
       errors: 0,
     }, null, 2);
@@ -193,8 +221,22 @@ export default function ExportPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmissionState("connecting");
+    if (docId) {
+      try {
+        setTimeout(() => setSubmissionState("sending"), 500);
+        setTimeout(() => setSubmissionState("processing"), 1200);
+        const result = await submitToABDM(docId);
+        setSubmissionState("done");
+        toast({ title: result.status || "Submitted successfully" });
+        return;
+      } catch {
+        setSubmissionState("idle");
+        toast({ title: "Submission failed", variant: "destructive" });
+        return;
+      }
+    }
     setTimeout(() => setSubmissionState("sending"), 800);
     setTimeout(() => setSubmissionState("processing"), 1800);
     setTimeout(() => setSubmissionState("done"), 2600);
@@ -309,8 +351,8 @@ export default function ExportPage() {
               onClick={submissionState === "idle" ? handleSubmit : undefined}
               disabled={submissionState !== "idle" && submissionState !== "done"}
               className={`shimmer-btn flex items-center justify-center gap-2 w-full px-6 py-3 rounded-md text-sm font-medium transition-all ${submissionState === "done"
-                  ? "bg-[#10B981] text-white"
-                  : "bg-[#4F46E5] text-white"
+                ? "bg-[#10B981] text-white"
+                : "bg-[#4F46E5] text-white"
                 }`}
             >
               {submissionState === "idle" && <><Send className="w-4 h-4" /> Submit Bundle <ArrowRight className="w-4 h-4" /></>}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle2, AlertTriangle, XCircle, ChevronRight, ChevronDown, RefreshCw,
   ArrowRight, ArrowLeft, User, Calendar, Heart, Pill, Activity,
@@ -9,6 +9,7 @@ import {
 import { mockComplianceItems, mockValidationIssues, mockResourceTree } from "@/data/mockData";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { triggerValidation, getValidationReport, type ValidationReport as ValidReport } from "@/lib/api";
 
 /* ── Animated Health Gauge ── */
 
@@ -153,24 +154,49 @@ function ResourceTreeNode({ node, depth = 0 }: { node: TreeNode; depth?: number 
 
 export default function ValidationReport() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const docId = searchParams.get("docId");
   const { toast } = useToast();
   const [revalidating, setRevalidating] = useState(false);
   const [allExpanded, setAllExpanded] = useState(false);
   const [expandedWarning, setExpandedWarning] = useState<number | null>(null);
+  const [apiReport, setApiReport] = useState<ValidReport | null>(null);
+
+  // Fetch validation report from API when docId is available
+  useEffect(() => {
+    if (docId) {
+      getValidationReport(docId)
+        .then((report) => {
+          setApiReport(report);
+          toast({ title: "Validation report loaded" });
+        })
+        .catch(() => {
+          // Fall back to mock data
+        });
+    }
+  }, [docId]);
 
   const errors = mockValidationIssues.filter((i) => i.severity === "error");
   const warnings = mockValidationIssues.filter((i) => i.severity === "warning");
   const infos = mockValidationIssues.filter((i) => i.severity === "info");
 
-  const handleRevalidate = () => {
+  const handleRevalidate = async () => {
     setRevalidating(true);
-    setTimeout(() => {
+    try {
+      if (docId) {
+        await triggerValidation(docId);
+        const report = await getValidationReport(docId);
+        setApiReport(report);
+        toast({ title: "Re-validation complete", description: `Score: ${report.bundle_health_score ?? 96}/100` });
+      } else {
+        await new Promise(r => setTimeout(r, 2000));
+        toast({ title: "Re-validation complete", description: "Score: 96/100" });
+      }
+    } catch {
+      toast({ title: "Re-validation failed", variant: "destructive" });
+    } finally {
       setRevalidating(false);
-      toast({
-        title: "Re-validation complete",
-        description: "Score: 96/100",
-      });
-    }, 2000);
+    }
   };
 
   const stagger = {

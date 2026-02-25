@@ -74,6 +74,18 @@ def _build_nhcx_checklist(fhir_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
     return checks
 
 
+@router.get("/documents/{document_id}/extracted")
+def get_extracted_data(
+    document_id: uuid.UUID = Path(...),
+    db: Session = Depends(get_db),
+):
+    """Return extracted_data JSON for a document."""
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    return document.extracted_data or {}
+
+
 @router.post("/documents/{document_id}/validate")
 def trigger_validation(
     document_id: uuid.UUID = Path(...),

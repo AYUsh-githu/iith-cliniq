@@ -8,6 +8,7 @@ import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
 } from "recharts";
+import { getAnalyticsSummary, type AnalyticsSummary } from "@/lib/api";
 
 /* ── Data ── */
 
@@ -165,6 +166,11 @@ function KPICard({ title, value, change, changeType, icon, delay }: KPIProps) {
 
 export default function Analytics() {
     const [dateRange, setDateRange] = useState("30");
+    const [stats, setStats] = useState<AnalyticsSummary | null>(null);
+
+    useEffect(() => {
+        getAnalyticsSummary().then(setStats).catch(() => { });
+    }, []);
 
     return (
         <motion.div
@@ -195,7 +201,7 @@ export default function Analytics() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KPICard
                     title="Total Documents Processed"
-                    value={<AnimatedCounter target={68} />}
+                    value={<AnimatedCounter target={stats?.total_documents ?? 0} />}
                     change="+100%"
                     changeType="up-good"
                     icon={<TrendingUp className="w-5 h-5" />}
@@ -203,23 +209,23 @@ export default function Analytics() {
                 />
                 <KPICard
                     title="Avg Processing Time"
-                    value={<><AnimatedCounter target={42} />s</>}
+                    value={<><AnimatedCounter target={stats?.avg_processing_time_seconds ?? 0} />s</>}
                     change="-4%"
                     changeType="down-good"
                     icon={<Clock className="w-5 h-5" />}
                     delay={0.06}
                 />
                 <KPICard
-                    title="Avg Bundle Health Score"
-                    value={<><AnimatedCounter target={91.4} decimals={1} />/100</>}
+                    title="Validation Pass Rate"
+                    value={<><AnimatedCounter target={(stats?.validation_pass_rate ?? 0) * 100} decimals={1} />%</>}
                     change="+3.2"
                     changeType="up-good"
                     icon={<BarChart3 className="w-5 h-5" />}
                     delay={0.12}
                 />
                 <KPICard
-                    title="Total FHIR Resources"
-                    value={<AnimatedCounter target={2108} />}
+                    title="Total Jobs"
+                    value={<AnimatedCounter target={stats?.total_jobs ?? 0} />}
                     change="+100%"
                     changeType="up-good"
                     icon={<TrendingUp className="w-5 h-5" />}

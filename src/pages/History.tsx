@@ -1,46 +1,35 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Search, Download, FileSearch, Eye, Trash2, ChevronLeft, ChevronRight,
-    X, ArrowRight
+    Search, Download, FileSearch, Eye, ChevronLeft, ChevronRight,
+    ArrowRight
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { mockRecentJobs, downloadMockFHIRBundle, generateMockCSV, downloadCSV } from "@/data/mockData";
 import { useToast } from "@/hooks/use-toast";
-
-/* ── Types ── */
-
-type StatusType = "Completed" | "Processing" | "Failed";
-type TypeFilter = "All" | "Discharge Summary" | "Diagnostic Report";
-type StatusFilter = "All" | StatusType;
-type DateFilter = "week" | "month" | "all";
+import {
+    listJobs,
+    getJobDetail,
+    downloadFHIR,
+    downloadJobBundle,
+    type JobSummary,
+    type JobDetail,
+} from "@/lib/api";
 
 /* ── Status Badge ── */
 
-function StatusBadge({ status }: { status: StatusType }) {
-    const styles: Record<StatusType, string> = {
-        Completed: "bg-[#10B981]/20 text-[#10B981]",
-        Processing: "bg-[#F59E0B]/20 text-[#F59E0B]",
-        Failed: "bg-[#F43F5E]/20 text-[#F43F5E]",
+function StatusBadge({ status }: { status: string }) {
+    const styles: Record<string, string> = {
+        completed: "bg-[#10B981]/20 text-[#10B981]",
+        processing: "bg-[#F59E0B]/20 text-[#F59E0B]",
+        failed: "bg-[#F43F5E]/20 text-[#F43F5E]",
+        queued: "bg-[#4F46E5]/20 text-[#4F46E5]",
     };
     return (
-        <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${styles[status]}`}>
-            {status === "Processing" && <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />}
+        <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${styles[status] || styles.queued}`}>
+            {status === "processing" && <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />}
             {status}
-        </span>
-    );
-}
-
-/* ── Type Badge ── */
-
-function TypeBadge({ type }: { type: string }) {
-    const isDS = type === "Discharge Summary";
-    return (
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${isDS ? "bg-[#4F46E5]/20 text-[#4F46E5]" : "bg-purple-500/20 text-purple-400"
-            }`}>
-            {isDS ? "Discharge Summary" : "Diagnostic Report"}
         </span>
     );
 }
@@ -50,33 +39,73 @@ function TypeBadge({ type }: { type: string }) {
 export default function History() {
     const navigate = useNavigate();
     const { toast } = useToast();
-    const [jobs, setJobs] = useState(mockRecentJobs);
+    const [jobs, setJobs] = useState<JobSummary[]>([]);
+    const [total, setTotal] = useState(0);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [typeFilter, setTypeFilter] = useState<TypeFilter>("All");
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
-    const [dateFilter, setDateFilter] = useState<DateFilter>("all");
-    const [selectedJob, setSelectedJob] = useState<typeof mockRecentJobs[0] | null>(null);
+    const [statusFilter, setStatusFilter] = useState<string>("All");
+    const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 12;
 
-    const filtered = useMemo(() => {
-        return jobs.filter((job) => {
-            if (search && !job.name.toLowerCase().includes(search.toLowerCase()) && !job.patient.toLowerCase().includes(search.toLowerCase())) return false;
-            if (typeFilter !== "All" && job.type !== typeFilter) return false;
-            if (statusFilter !== "All" && job.status !== statusFilter) return false;
-            return true;
-        });
-    }, [jobs, search, typeFilter, statusFilter]);
+    // Fetch jobs from API
+    useEffect(() => {
+        setLoading(true);
+        listJobs(currentPage, pageSize)
+            .then((res) => {
+                setJobs(res.items);
+                setTotal(res.total);
+            })
+            .catch(() => {
+                toast({ title: "Failed to load history", variant: "destructive" });
+            })
+            .finally(() => setLoading(false));
+    }, [currentPage]);
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-    const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-    useEffect(() => { setCurrentPage(1); }, [search, typeFilter, statusFilter]);
+    // Client-side filtering for search + status
+    const filtered = jobs.filter((job) => {
+        if (search && !job.id.toLowerCase().includes(search.toLowerCase()) && !job.use_case.toLowerCase().includes(search.toLowerCase())) return false;
+        if (statusFilter !== "All" && job.status !== statusFilter.toLowerCase()) return false;
+        return true;
+    });
+
+    const handleViewDetails = async (job: JobSummary) => {
+        try {
+            const detail = await getJobDetail(job.id);
+            setSelectedJob(detail);
+        } catch {
+            toast({ title: "Failed to load details", variant: "destructive" });
+        }
+    };
+
+    const handleDownload = async (job: JobSummary, e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await downloadJobBundle(job.id);
+            toast({ title: "Downloading FHIR bundle" });
+        } catch {
+            toast({ title: "Download failed", variant: "destructive" });
+        }
+    };
 
     const handleExportCSV = () => {
-        const csv = generateMockCSV(filtered);
-        downloadCSV(csv, 'ClinIQ_Conversion_History.csv');
-        toast({ title: 'CSV exported', description: `${filtered.length} records exported.` });
+        const header = "Job ID,Status,Use Case,Documents,Confidence,Created\n";
+        const rows = filtered.map(j =>
+            `"${j.id}","${j.status}","${j.use_case}","${j.document_count}","${j.avg_confidence != null ? Math.round(j.avg_confidence * 100) + '%' : '-'}","${new Date(j.created_at).toLocaleString()}"`
+        ).join("\n");
+        const csv = header + rows;
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ClinIQ_History.csv";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "CSV exported", description: `${filtered.length} records exported.` });
     };
 
     return (
@@ -97,7 +126,7 @@ export default function History() {
                         <input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search by patient name or filename..."
+                            placeholder="Search by job ID or use case..."
                             className="pl-10 pr-4 py-2 w-72 rounded-md bg-[#0F1629] border border-[#1E2A45] text-sm text-[#F1F5F9] placeholder:text-[#94A3B8]/60 focus:border-[#4F46E5] focus:outline-none transition-colors"
                         />
                     </div>
@@ -114,127 +143,90 @@ export default function History() {
 
             {/* Filters */}
             <div className="flex items-center gap-3">
-                <div className="flex rounded-md border border-[#1E2A45] overflow-hidden">
-                    {(["All", "Discharge Summary", "Diagnostic Report"] as TypeFilter[]).map((t) => (
-                        <button
-                            key={t}
-                            onClick={() => setTypeFilter(t)}
-                            className={`px-3 py-1.5 text-xs transition-colors ${typeFilter === t ? "bg-[#4F46E5] text-white" : "bg-[#0F1629] text-[#94A3B8] hover:text-[#F1F5F9]"
-                                }`}
-                        >
-                            {t}
-                        </button>
-                    ))}
-                </div>
-
-                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-36 h-8 text-xs bg-[#0F1629] border-[#1E2A45] text-[#F1F5F9]">
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent className="bg-[#151D35] border-[#1E2A45]">
-                        {(["All", "Completed", "Processing", "Failed"] as StatusFilter[]).map((s) => (
+                        {["All", "Completed", "Processing", "Queued", "Failed"].map((s) => (
                             <SelectItem key={s} value={s} className="text-[#F1F5F9] text-xs">{s}</SelectItem>
                         ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as DateFilter)}>
-                    <SelectTrigger className="w-36 h-8 text-xs bg-[#0F1629] border-[#1E2A45] text-[#F1F5F9]">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#151D35] border-[#1E2A45]">
-                        <SelectItem value="week" className="text-[#F1F5F9] text-xs">This week</SelectItem>
-                        <SelectItem value="month" className="text-[#F1F5F9] text-xs">This month</SelectItem>
-                        <SelectItem value="all" className="text-[#F1F5F9] text-xs">All time</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
 
             {/* Data Table */}
-            {paginated.length > 0 ? (
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 rounded-lg bg-[#0F1629] card-shadow">
+                    <div className="w-8 h-8 border-2 border-[#4F46E5] border-t-transparent rounded-full animate-spin mb-4" />
+                    <div className="text-sm text-[#94A3B8]">Loading history...</div>
+                </div>
+            ) : filtered.length > 0 ? (
                 <div className="rounded-lg bg-[#0F1629] card-shadow overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                             <thead>
                                 <tr className="bg-[#151D35] text-[#94A3B8] text-left">
-                                    <th className="px-4 py-3 font-medium">Document</th>
-                                    <th className="px-4 py-3 font-medium">Type</th>
-                                    <th className="px-4 py-3 font-medium">Patient</th>
-                                    <th className="px-4 py-3 font-medium">Detected</th>
-                                    <th className="px-4 py-3 font-medium">Confidence</th>
-                                    <th className="px-4 py-3 font-medium">Health Score</th>
+                                    <th className="px-4 py-3 font-medium">Job ID</th>
+                                    <th className="px-4 py-3 font-medium">Use Case</th>
+                                    <th className="px-4 py-3 font-medium">Documents</th>
+                                    <th className="px-4 py-3 font-medium">Avg Confidence</th>
+                                    <th className="px-4 py-3 font-medium">Created</th>
                                     <th className="px-4 py-3 font-medium">Status</th>
                                     <th className="px-4 py-3 font-medium">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {paginated.map((job, i) => (
+                                {filtered.map((job, i) => (
                                     <motion.tr
                                         key={job.id}
                                         initial={{ opacity: 0, y: 8 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: i * 0.03 }}
-                                        onClick={() => setSelectedJob(job)}
+                                        onClick={() => handleViewDetails(job)}
                                         className="border-t border-[#1E2A45] cursor-pointer hover:bg-[#151D35] transition-colors"
                                     >
+                                        <td className="px-4 py-3 font-mono text-[#F1F5F9]">{job.id.slice(0, 8)}…</td>
                                         <td className="px-4 py-3">
-                                            <div className="text-[#F1F5F9] font-medium">{job.name}</div>
-                                            <div className="text-[10px] text-[#94A3B8]">{job.size}</div>
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#4F46E5]/20 text-[#4F46E5]">
+                                                {job.use_case?.replace("_", " ") || "—"}
+                                            </span>
                                         </td>
-                                        <td className="px-4 py-3"><TypeBadge type={job.type} /></td>
+                                        <td className="px-4 py-3 text-[#F1F5F9]">{job.document_count}</td>
                                         <td className="px-4 py-3">
-                                            <div className="text-[#F1F5F9]">{job.patient}</div>
-                                            <div className="text-[10px] text-[#94A3B8] font-mono">{job.abha}</div>
-                                        </td>
-                                        <td className="px-4 py-3 text-[#94A3B8]">{job.detected}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`font-medium ${job.confidence >= 90 ? "text-[#10B981]" : job.confidence >= 80 ? "text-[#F59E0B]" : "text-[#F43F5E]"
-                                                    }`}>
-                                                    {job.confidence}%
-                                                </span>
-                                                <div className="w-16 h-1 rounded-full bg-[#1E2A45] overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full ${job.confidence >= 90 ? "bg-[#10B981]" : job.confidence >= 80 ? "bg-[#F59E0B]" : "bg-[#F43F5E]"
-                                                            }`}
-                                                        style={{ width: `${job.confidence}%` }}
-                                                    />
+                                            {job.avg_confidence != null ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-medium ${job.avg_confidence * 100 >= 90 ? "text-[#10B981]" : job.avg_confidence * 100 >= 80 ? "text-[#F59E0B]" : "text-[#F43F5E]"}`}>
+                                                        {Math.round(job.avg_confidence * 100)}%
+                                                    </span>
+                                                    <div className="w-16 h-1 rounded-full bg-[#1E2A45] overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full ${job.avg_confidence * 100 >= 90 ? "bg-[#10B981]" : job.avg_confidence * 100 >= 80 ? "bg-[#F59E0B]" : "bg-[#F43F5E]"}`}
+                                                            style={{ width: `${job.avg_confidence * 100}%` }}
+                                                        />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {job.healthScore > 0 ? (
-                                                <span className={`font-medium ${job.healthScore >= 90 ? "text-[#10B981]" : job.healthScore >= 70 ? "text-[#F59E0B]" : "text-[#F43F5E]"
-                                                    }`}>
-                                                    {job.healthScore}/100
-                                                </span>
                                             ) : (
                                                 <span className="text-[#94A3B8]">—</span>
                                             )}
                                         </td>
+                                        <td className="px-4 py-3 text-[#94A3B8]">{new Date(job.created_at).toLocaleString()}</td>
                                         <td className="px-4 py-3"><StatusBadge status={job.status} /></td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-1">
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); setSelectedJob(job); }}
+                                                    onClick={(e) => { e.stopPropagation(); handleViewDetails(job); }}
                                                     className="p-1 rounded hover:bg-[#1E2A45] text-[#94A3B8] hover:text-[#F1F5F9] transition-colors"
                                                     title="View"
                                                 >
                                                     <Eye className="w-3.5 h-3.5" />
                                                 </button>
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); downloadMockFHIRBundle(job.patient); toast({ title: 'Downloading FHIR bundle', description: job.name }); }}
+                                                    onClick={(e) => handleDownload(job, e)}
                                                     className="p-1 rounded hover:bg-[#1E2A45] text-[#94A3B8] hover:text-[#F1F5F9] transition-colors"
                                                     title="Download"
                                                 >
                                                     <Download className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setJobs(prev => prev.filter(j => j.id !== job.id)); toast({ title: 'Record removed', description: `${job.name} deleted.` }); }}
-                                                    className="p-1 rounded hover:bg-[#F43F5E]/20 text-[#94A3B8] hover:text-[#F43F5E] transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
                                         </td>
@@ -246,7 +238,9 @@ export default function History() {
 
                     {/* Pagination */}
                     <div className="flex items-center justify-between px-4 py-3 border-t border-[#1E2A45]">
-                        <span className="text-xs text-[#94A3B8]">Showing {Math.min((currentPage - 1) * pageSize + 1, filtered.length)}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} results</span>
+                        <span className="text-xs text-[#94A3B8]">
+                            Showing {Math.min((currentPage - 1) * pageSize + 1, total)}-{Math.min(currentPage * pageSize, total)} of {total} results
+                        </span>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
@@ -271,13 +265,17 @@ export default function History() {
                 <div className="flex flex-col items-center justify-center py-20 rounded-lg bg-[#0F1629] card-shadow">
                     <FileSearch className="w-12 h-12 text-[#94A3B8]/40 mb-4" />
                     <div className="text-lg text-[#F1F5F9] font-medium mb-2">No conversions found</div>
-                    <div className="text-sm text-[#94A3B8] mb-4">Try adjusting your search or filters</div>
-                    <button
-                        onClick={() => { setSearch(""); setTypeFilter("All"); setStatusFilter("All"); }}
-                        className="px-4 py-2 rounded-md text-sm text-[#4F46E5] hover:bg-[#4F46E5]/10 transition-colors"
-                    >
-                        Clear search
-                    </button>
+                    <div className="text-sm text-[#94A3B8] mb-4">
+                        {total === 0 ? "Upload a document to get started" : "Try adjusting your search or filters"}
+                    </div>
+                    {search || statusFilter !== "All" ? (
+                        <button
+                            onClick={() => { setSearch(""); setStatusFilter("All"); }}
+                            className="px-4 py-2 rounded-md text-sm text-[#4F46E5] hover:bg-[#4F46E5]/10 transition-colors"
+                        >
+                            Clear filters
+                        </button>
+                    ) : null}
                 </div>
             )}
 
@@ -285,54 +283,65 @@ export default function History() {
             <Sheet open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
                 <SheetContent className="bg-[#0F1629] border-l border-[#1E2A45] text-[#F1F5F9]">
                     <SheetHeader>
-                        <SheetTitle className="text-[#F1F5F9]">Conversion Details</SheetTitle>
+                        <SheetTitle className="text-[#F1F5F9]">Job Details</SheetTitle>
                     </SheetHeader>
                     {selectedJob && (
                         <div className="mt-6 space-y-4">
                             <div className="rounded-md bg-[#080D1A] border border-[#1E2A45] p-4 space-y-3">
                                 <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Document</span>
-                                    <span className="text-sm text-[#F1F5F9] font-medium">{selectedJob.name}</span>
+                                    <span className="text-xs text-[#94A3B8]">Job ID</span>
+                                    <span className="text-sm text-[#F1F5F9] font-mono">{selectedJob.id.slice(0, 12)}…</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Patient</span>
-                                    <span className="text-sm text-[#F1F5F9]">{selectedJob.patient}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">ABHA ID</span>
-                                    <span className="text-sm text-[#F1F5F9] font-mono">{selectedJob.abha}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Type</span>
-                                    <TypeBadge type={selectedJob.type} />
+                                    <span className="text-xs text-[#94A3B8]">Use Case</span>
+                                    <span className="text-sm text-[#F1F5F9]">{selectedJob.use_case?.replace("_", " ")}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-xs text-[#94A3B8]">Status</span>
                                     <StatusBadge status={selectedJob.status} />
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Confidence</span>
-                                    <span className={`text-sm font-medium ${selectedJob.confidence >= 90 ? "text-[#10B981]" : "text-[#F59E0B]"
-                                        }`}>{selectedJob.confidence}%</span>
+                                    <span className="text-xs text-[#94A3B8]">Created</span>
+                                    <span className="text-sm text-[#F1F5F9]">{new Date(selectedJob.created_at).toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Health Score</span>
-                                    <span className="text-sm text-[#F1F5F9]">{selectedJob.healthScore > 0 ? `${selectedJob.healthScore}/100` : "—"}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Size</span>
-                                    <span className="text-sm text-[#F1F5F9]">{selectedJob.size}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-xs text-[#94A3B8]">Processed</span>
-                                    <span className="text-sm text-[#F1F5F9]">{selectedJob.detected}</span>
-                                </div>
+                            </div>
+
+                            {/* Documents list */}
+                            <div className="space-y-2">
+                                <h4 className="text-xs text-[#94A3B8] font-medium">Documents ({selectedJob.documents.length})</h4>
+                                {selectedJob.documents.map((doc) => (
+                                    <div key={doc.id} className="rounded-md bg-[#080D1A] border border-[#1E2A45] p-3 flex items-center justify-between">
+                                        <div>
+                                            <div className="text-sm text-[#F1F5F9] font-medium">{doc.filename}</div>
+                                            <div className="text-[10px] text-[#94A3B8]">{doc.doc_type} · {doc.status}</div>
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => { setSelectedJob(null); navigate(`/review?docId=${doc.id}`); }}
+                                                className="p-1.5 rounded hover:bg-[#1E2A45] text-[#94A3B8] hover:text-[#F1F5F9] transition-colors"
+                                            >
+                                                <Eye className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={async () => { try { await downloadFHIR(doc.id); toast({ title: "Downloading…" }); } catch { toast({ title: "Failed", variant: "destructive" }); } }}
+                                                className="p-1.5 rounded hover:bg-[#1E2A45] text-[#94A3B8] hover:text-[#F1F5F9] transition-colors"
+                                            >
+                                                <Download className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
                             <motion.button
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => { setSelectedJob(null); navigate("/review"); }}
+                                onClick={() => {
+                                    setSelectedJob(null);
+                                    if (selectedJob.documents.length > 0) {
+                                        navigate(`/review?docId=${selectedJob.documents[0].id}`);
+                                    }
+                                }}
                                 className="shimmer-btn flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-md bg-[#4F46E5] text-white text-sm font-medium"
                             >
                                 Open Full Review <ArrowRight className="w-4 h-4" />

@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft, ZoomIn, ZoomOut, Eye, Check, AlertTriangle,
   ArrowRight, Loader2, GripVertical, Stethoscope, Pill,
@@ -18,6 +18,7 @@ import {
 import {
   ResizableHandle, ResizablePanel, ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { getExtractedData, patchExtractedData, triggerValidation } from "@/lib/api";
 
 /* ── helpers ── */
 
@@ -444,10 +445,29 @@ function PDFViewer({ activeHighlight, onHighlightClick }: {
 
 export default function ClinicalReview() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const docId = searchParams.get("docId");
   const { toast } = useToast();
   const [activeHighlight, setActiveHighlight] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [acceptedFields, setAcceptedFields] = useState<Set<string>>(new Set());
+  const [extractedData, setExtractedData] = useState<Record<string, any> | null>(null);
+
+  // Fetch extracted data from API when docId is available
+  useEffect(() => {
+    if (docId) {
+      getExtractedData(docId)
+        .then((data) => {
+          if (data && Object.keys(data).length > 0) {
+            setExtractedData(data);
+            toast({ title: "Extracted data loaded", description: `Document ${docId.slice(0, 8)}…` });
+          }
+        })
+        .catch(() => {
+          toast({ title: "Using demo data", description: "Could not fetch extracted data from API" });
+        });
+    }
+  }, [docId]);
 
   // Collect all fields with their IDs and confidences for the Accept All logic
   const allFields = useMemo(() => {
@@ -482,16 +502,27 @@ export default function ClinicalReview() {
     setTimeout(() => setActiveHighlight(null), 3000);
   }, []);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
+    try {
+      if (docId) {
+        await triggerValidation(docId);
+        toast({ title: "FHIR Bundle generated", description: "Validation triggered via API" });
+        navigate(`/validate?docId=${docId}`);
+      } else {
+        // Mock flow
+        setTimeout(() => {
+          setIsGenerating(false);
+          toast({ title: "FHIR Bundle generated", description: "31 resources created successfully." });
+          navigate("/validate");
+        }, 2000);
+        return;
+      }
+    } catch (err: any) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
       setIsGenerating(false);
-      toast({
-        title: "FHIR Bundle generated",
-        description: "31 resources created successfully.",
-      });
-      navigate("/validate");
-    }, 2000);
+    }
   };
 
   return (
