@@ -1,4 +1,5 @@
-from . import upload, jobs, validate, export
+from . import upload, jobs, validate, export, analytics
 
-__all__ = ["upload", "jobs", "validate", "export"]
+__all__ = ["upload", "jobs", "validate", "export", "analytics"]
+
 

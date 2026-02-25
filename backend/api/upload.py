@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.models import Document, Job, SessionLocal
+from backend.worker.tasks import process_job
 
 router = APIRouter(tags=["upload"])
 
@@ -163,14 +164,8 @@ async def upload_documents(
     db.add_all(documents_to_create)
     db.commit()
 
-    # Dispatch Celery task (optional until worker is wired up)
-    try:
-        from backend.tasks import process_job  # type: ignore[import]
-
-        process_job.delay(str(job.id))
-    except Exception:
-        # In early development we silently ignore Celery issues to not block API.
-        pass
+    # Dispatch Celery task
+    process_job.delay(str(job.id))
 
     return {
         "job_id": str(job.id),
