@@ -1,5 +1,5 @@
-from . import upload, jobs, validate, export, analytics
+from fastapi import APIRouter
 
-__all__ = ["upload", "jobs", "validate", "export", "analytics"]
 
+router = APIRouter()
 

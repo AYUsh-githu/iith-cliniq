@@ -1,24 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_DIR="$PROJECT_ROOT/.venv"
 
-echo "Creating virtual environment (venv)..."
-python -m venv venv
+python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
 
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-echo "Installing Python dependencies..."
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r "$PROJECT_ROOT/backend/requirements.txt"
 
-echo "Downloading spaCy model (en_core_web_sm)..."
-python -m spacy download en_core_web_sm
-
-echo "Running Alembic migrations..."
-alembic upgrade head
-
-echo "Setup complete. Run: uvicorn main:app --reload"
+echo "Environment ready. Activate with:"
+echo "  source $VENV_DIR/bin/activate"
+echo "Run API server with:"
+echo "  uvicorn backend.main:app --reload"
 
