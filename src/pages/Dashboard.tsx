@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
-  Upload, FileText, Activity, Clock, TrendingUp, Check, AlertCircle,
-  ChevronRight, Eye, Download, Trash2, ToggleLeft, ToggleRight, Zap
+  Upload, FileText, Check,
+  ChevronRight, Eye, Download, ToggleLeft, ToggleRight, Zap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -18,26 +18,6 @@ import {
 } from "@/lib/api";
 
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
-const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
-
-function StatChip({ icon: Icon, label, value, delay }: { icon: any; label: string; value: string; delay: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay }}
-      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface card-shadow pulse-glow"
-    >
-      <div className="w-8 h-8 rounded-md bg-primary/20 flex items-center justify-center">
-        <Icon className="w-4 h-4 text-primary" />
-      </div>
-      <div>
-        <div className="text-h3 text-foreground">{value}</div>
-        <div className="text-caption text-muted-foreground">{label}</div>
-      </div>
-    </motion.div>
-  );
-}
 
 function UploadCard({
   title,
@@ -289,30 +269,10 @@ export default function Dashboard() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-body text-muted-foreground max-w-xl mb-6"
+          className="text-body text-muted-foreground max-w-xl"
         >
           Upload discharge summaries and diagnostic reports. Get ABDM/NHCX-compliant FHIR R4 bundles in seconds.
         </motion.p>
-        <motion.div variants={stagger} initial="hidden" animate="show" className="flex gap-4 flex-wrap">
-          <StatChip
-            icon={FileText}
-            label="Documents Processed"
-            value={stats ? stats.total_documents.toLocaleString() : "—"}
-            delay={0}
-          />
-          <StatChip
-            icon={TrendingUp}
-            label="Avg Confidence"
-            value={stats ? `${Math.round(stats.avg_confidence * 100)}%` : "—"}
-            delay={0.05}
-          />
-          <StatChip
-            icon={Clock}
-            label="Avg Processing Time"
-            value={stats ? `${Math.round(stats.avg_processing_time_seconds)}s` : "—"}
-            delay={0.1}
-          />
-        </motion.div>
       </section>
 
       {/* Upload Zone */}
